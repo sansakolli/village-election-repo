@@ -1,1 +1,494 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Election Dashboard App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans Telugu', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 50;
+        }
+        .modal-content { max-height: 90vh; overflow-y: auto; }
+        .modal-content::-webkit-scrollbar { width: 8px; }
+        .modal-content::-webkit-scrollbar-track { background: #f1f1f1; }
+        .modal-content::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        .modal-content::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        .status-supporter-border { border-color: #16a34a; }
+        .status-neutral-border { border-color: #64748b; }
+        .status-opposition-border { border-color: #dc2626; }
+
+        .status-supporter-bg { background-color: #16a34a; color: white; }
+        .status-neutral-bg { background-color: #64748b; color: white; }
+        .status-opposition-bg { background-color: #dc2626; color: white; }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-md sticky top-0 z-40">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl font-bold">ఎన్నికల డాష్‌బోర్డ్</h1>
+        </div>
+    </header>
+    
+    <!-- Statistics Panel -->
+    <div id="stats-panel" class="container mx-auto px-4 pt-4 sticky top-[60px] z-30 bg-[#f0f2f5] pb-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+            <div class="bg-blue-100 p-3 rounded-lg shadow">
+                <p class="text-sm font-bold text-blue-800">మొత్తం ఓటర్లు</p>
+                <p id="stats-total" class="text-2xl font-bold text-blue-900">0</p>
+            </div>
+            <div class="bg-green-100 p-3 rounded-lg shadow">
+                <p class="text-sm font-bold text-green-800">మద్దతుదారులు</p>
+                <p id="stats-supporters" class="text-2xl font-bold text-green-900">0</p>
+            </div>
+            <div class="bg-red-100 p-3 rounded-lg shadow">
+                <p class="text-sm font-bold text-red-800">ప్రత్యర్థి వర్గం</p>
+                <p id="stats-opposition" class="text-2xl font-bold text-red-900">0</p>
+            </div>
+            <div class="bg-slate-100 p-3 rounded-lg shadow">
+                <p class="text-sm font-bold text-slate-800">తటస్థులు</p>
+                <p id="stats-neutral" class="text-2xl font-bold text-slate-900">0</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-4 pt-0">
+        <!-- Filters -->
+        <div class="bg-white p-3 rounded-lg shadow-md mb-4">
+            <div class="flex flex-col md:flex-row gap-3">
+                <input type="text" id="search-input" placeholder="పేరు, ఇంటిపేరు (తెలుగు/English), ఓటరు ID..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <select id="booth-filter" class="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">అన్ని బూత్‌లు</option>
+                    <option value="1">బూత్ 1</option>
+                    <option value="2">బూత్ 2</option>
+                    <option value="3">బూత్ 3</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Voter List -->
+        <div id="voter-list-container" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <!-- Voter SLIP CARDS will be injected here by JavaScript -->
+        </div>
+        <div id="no-results" class="hidden text-center text-gray-500 mt-8">
+            <p class="text-lg">ఫలితాలు కనుగొనబడలేదు.</p>
+        </div>
+    </main>
+
+    <!-- Modals (Details, Add/Edit) and FAB remain same -->
+     <!-- Voter Details Modal -->
+    <div id="voter-modal" class="modal-overlay hidden">
+        <div class="bg-white rounded-lg shadow-xl w-11/12 md:w-2/3 lg:w-1/2 modal-content p-6 relative">
+            <button id="close-modal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl z-10">&times;</button>
+            <div id="modal-content-body"></div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Voter Modal -->
+    <div id="form-modal" class="modal-overlay hidden">
+        <div class="bg-white rounded-lg shadow-xl w-11/12 md:w-2/3 lg:w-1/2 modal-content p-6 relative">
+            <button id="close-form-modal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+            <h2 id="form-title" class="text-xl font-bold mb-4 text-gray-800"></h2>
+            <form id="voter-form">
+                 <input type="hidden" id="voter-id-input">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <input type="text" id="name-input" placeholder="పూర్తి పేరు" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="surname-input" placeholder="ఇంటి పేరు" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="voterId-input" placeholder="ఓటరు ID" class="px-3 py-2 border rounded" required>
+                    <input type="date" id="dob-input" class="px-3 py-2 border rounded" required>
+                    <select id="gender-input" class="px-3 py-2 border rounded" required><option value="" disabled>లింగం</option><option value="Male">పురుషుడు</option><option value="Female">స్త్రీ</option></select>
+                    <input type="number" id="phone-input" placeholder="ఫోన్ నంబర్" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="fatherName-input" placeholder="తండ్రి పేరు" class="px-3 py-2 border rounded">
+                    <input type="text" id="motherName-input" placeholder="తల్లి పేరు" class="px-3 py-2 border rounded">
+                    <select id="marital-status-input" class="px-3 py-2 border rounded" required><option value="" disabled>వైవాహిక స్థితి</option></select>
+                    <input type="text" id="spouse-name-input" placeholder="భర్త/భార్య పేరు" class="px-3 py-2 border rounded hidden">
+                    <input type="text" id="occupation-input" placeholder="వృత్తి" class="px-3 py-2 border rounded">
+                    <input type="text" id="education-input" placeholder="విద్యా అర్హత" class="px-3 py-2 border rounded">
+                    <input type="text" id="houseHead-input" placeholder="ఇంటి పెద్ద" class="px-3 py-2 border rounded">
+                    <input type="text" id="familyHead-input" placeholder="కుటుంబ పెద్ద (వంశం)" class="px-3 py-2 border rounded">
+                    <input type="text" id="serial-input" placeholder="క్రమ సంఖ్య" class="px-3 py-2 border rounded">
+                    <select id="booth-input" class="px-3 py-2 border rounded" required><option value="" disabled>బూత్</option><option value="1">బూత్ 1</option><option value="2">బూత్ 2</option><option value="3">బూత్ 3</option></select>
+                    <select id="status-input" class="px-3 py-2 border rounded" required><option value="" disabled>స్థితి</option><option value="Supporter">మద్దతుదారు</option><option value="Neutral">తటస్థం</option><option value="Opposition">ప్రత్యర్థి వర్గం</option></select>
+                </div>
+                 <textarea id="address-input" placeholder="పూర్తి చిరునామా" rows="2" class="w-full mt-4 px-3 py-2 border rounded"></textarea>
+                 <textarea id="familyMembers-input" placeholder="కుటుంబ సభ్యులు (ఉదా: కిరణ్ (కొడుకు), లక్ష్మి (భార్య))" rows="2" class="w-full mt-4 px-3 py-2 border rounded"></textarea>
+                <div class="mt-6 text-right"><button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">సేవ్ చేయి</button></div>
+            </form>
+        </div>
+    </div>
+    <button id="add-voter-btn" class="fixed bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-blue-700 transition-transform transform hover:scale-110">+</button>
+    
+
+    <script>
+        // --- 1. MOCK DATA with new fields for bilingual search ---
+        let voters = [
+            { id: 101, serial: '1026', voterId: 'APL1234567', name: 'వేముల శ్రీనివాస్', surname: 'వేముల', englishName: 'vemula srinivas', dob: '1979-05-15', gender: 'Male', fatherName: 'వేముల నారాయణ', motherName: 'వేముల సత్యవతి', maritalStatus: 'Married', spouseName: 'వేముల లక్ష్మి', booth: '1', address: '1-23, రామాలయం వీధి, గంట్యాడ', phone: '9876543210', status: 'Supporter', occupation: 'రైతు', education: '10వ తరగతి', houseHead: 'వేముల శ్రీనివాస్', familyHead: 'వేముల నారాయణ', familyMembers: [{name: 'వేముల లక్ష్మి', relation: 'భార్య'}, {name: 'వేముల కృష్ణ', relation: 'కొడుకు'}] },
+            { id: 102, serial: '1027', voterId: 'APL1234568', name: 'కొండవీటి రమణ', surname: 'కొండవీటి', englishName: 'kondaveeti ramana', dob: '1972-11-20', gender: 'Male', fatherName: 'కొండవీటి అప్పల నాయుడు', motherName: 'కొండవీటి గౌరి', maritalStatus: 'Married', spouseName: 'కొండవీటి సుజాత', booth: '1', address: '1-24, రామాలయం వీధి, గంట్యాడ', phone: '9876543211', status: 'Neutral', occupation: 'వ్యాపారి', education: 'డిగ్రీ', houseHead: 'కొండవీటి రమణ', familyHead: 'కొండవీటి రమణ', familyMembers: [{name: 'కొండవీటి సుజాత', relation: 'భార్య'}] },
+            { id: 103, serial: '1028', voterId: 'APL1234569', name: 'యలమంచిలి పార్వతి', surname: 'యలమంచిలి', englishName: 'yalamanchili parvati', dob: '1986-02-10', gender: 'Female', fatherName: 'గండికోట రాము', motherName: 'గండికోట వరలక్ష్మి', maritalStatus: 'Married', spouseName: 'యలమంచిలి ప్రసాద్', booth: '2', address: '2-11, బజార్ వీధి, గంట్యాడ', phone: '9876543212', status: 'Opposition', occupation: 'ఉపాధ్యాయురాలు', education: 'B.Ed', houseHead: 'యలమంచిలి ప్రసాద్', familyHead: 'యలమంచిలి ప్రసాద్', familyMembers: [{name: 'యలమంచిలి ప్రసాద్', relation: 'భర్త'}, {name: 'యలమంచిలి రాము', relation: 'కొడుకు'}] },
+            { id: 104, serial: '1029', voterId: 'APL1234570', name: 'దాసరి వెంకటేశ్', surname: 'దాసరి', englishName: 'dasari venkatesh', dob: '1996-08-30', gender: 'Male', fatherName: 'దాసరి నాగేశ్వరరావు', motherName: 'దాసరి అనసూయ', maritalStatus: 'Unmarried', spouseName: null, booth: '2', address: '2-12, బజార్ వీధి, గంట్యాడ', phone: '9876543213', status: 'Supporter', occupation: 'విద్యార్థి', education: 'ఇంటర్', houseHead: 'దాసరి నాగేశ్వరరావు', familyHead: 'దాసరి నాగేశ్వరరావు', familyMembers: [] },
+        ];
+
+        // --- 2. DOM ELEMENTS ---
+        const voterListContainer = document.getElementById('voter-list-container');
+        const searchInput = document.getElementById('search-input');
+        const boothFilter = document.getElementById('booth-filter');
+        const noResultsDiv = document.getElementById('no-results');
+        const voterModal = document.getElementById('voter-modal');
+        const modalContentBody = document.getElementById('modal-content-body');
+        const closeModalBtn = document.getElementById('close-modal');
+        const addVoterBtn = document.getElementById('add-voter-btn');
+        // Stats
+        const statsTotal = document.getElementById('stats-total');
+        const statsSupporters = document.getElementById('stats-supporters');
+        const statsOpposition = document.getElementById('stats-opposition');
+        const statsNeutral = document.getElementById('stats-neutral');
+        // Form
+        const formModal = document.getElementById('form-modal');
+        const closeFormModalBtn = document.getElementById('close-form-modal');
+        const voterForm = document.getElementById('voter-form');
+        const formTitle = document.getElementById('form-title');
+        const voterIdInput = document.getElementById('voter-id-input');
+        const nameInput = document.getElementById('name-input');
+        const surnameInput = document.getElementById('surname-input');
+        const voterIdInputEl = document.getElementById('voterId-input');
+        const dobInput = document.getElementById('dob-input');
+        const genderInput = document.getElementById('gender-input');
+        const phoneInput = document.getElementById('phone-input');
+        const fatherNameInput = document.getElementById('fatherName-input');
+        const motherNameInput = document.getElementById('motherName-input');
+        const maritalStatusInput = document.getElementById('marital-status-input');
+        const spouseNameInput = document.getElementById('spouse-name-input');
+        const occupationInput = document.getElementById('occupation-input');
+        const educationInput = document.getElementById('education-input');
+        const houseHeadInput = document.getElementById('houseHead-input');
+        const familyHeadInput = document.getElementById('familyHead-input');
+        const familyMembersInput = document.getElementById('familyMembers-input');
+        const serialInput = document.getElementById('serial-input');
+        const boothInput = document.getElementById('booth-input');
+        const statusInput = document.getElementById('status-input');
+        const addressInput = document.getElementById('address-input');
+
+        // --- 3. FUNCTIONS ---
+        function calculateAge(dobString) {
+            if (!dobString) return '?';
+            const dob = new Date(dobString);
+            const diff_ms = Date.now() - dob.getTime();
+            const age_dt = new Date(diff_ms);
+            return Math.abs(age_dt.getUTCFullYear() - 1970);
+        }
+
+        function updateStatistics(voterArray) {
+            statsTotal.textContent = voterArray.length;
+            statsSupporters.textContent = voterArray.filter(v => v.status === 'Supporter').length;
+            statsOpposition.textContent = voterArray.filter(v => v.status === 'Opposition').length;
+            statsNeutral.textContent = voterArray.filter(v => v.status === 'Neutral').length;
+        }
+
+        function renderVoterList(voterArray) {
+            voterListContainer.innerHTML = '';
+            noResultsDiv.classList.toggle('hidden', voterArray.length === 0);
+            updateStatistics(voterArray); // Update stats whenever list is rendered
+
+            voterArray.forEach(voter => {
+                const statusBorderClass = getStatusBorderClass(voter.status);
+                let relationLabel = 'తండ్రి పేరు';
+                let relationName = voter.fatherName;
+                if (voter.gender === 'Female' && voter.maritalStatus === 'Married') {
+                    relationLabel = 'భర్త పేరు';
+                    relationName = voter.spouseName;
+                }
+                const houseNumber = voter.address.split(',')[0];
+
+                const voterCard = `
+                    <div class="bg-white rounded-lg shadow-md border-b-4 ${statusBorderClass} p-3 cursor-pointer hover:shadow-xl transition-shadow voter-card" data-id="${voter.id}">
+                        <div class="border border-black p-2">
+                             <div class="flex justify-between items-center border-b border-black pb-1 mb-2 text-xs">
+                                <span>క్రమ సంఖ్య: ${voter.serial}</span>
+                                <span>బూత్: ${voter.booth}</span>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="w-1/4 flex items-center justify-center">
+                                    <div class="w-20 h-24 border border-gray-400 bg-gray-200 flex items-center justify-center rounded">
+                                        <svg class="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+                                    </div>
+                                </div>
+                                <div class="w-3/4 text-sm space-y-1">
+                                    <p class="font-bold text-base">${voter.name}</p>
+                                    <p><span class="font-semibold">${relationLabel}:</span> ${relationName}</p>
+                                    <p><span class="font-semibold">ఇంటి నెం:</span> ${houseNumber}</p>
+                                    <p class="font-mono text-xs pt-1">${voter.voterId}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                voterListContainer.innerHTML += voterCard;
+            });
+        }
+        
+        function applyFilters() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const selectedBooth = boothFilter.value;
+            const filteredVoters = voters.filter(voter => {
+                const matchesSearch = searchTerm === '' || 
+                                      voter.name.toLowerCase().includes(searchTerm) || 
+                                      voter.surname.toLowerCase().includes(searchTerm) || 
+                                      voter.englishName.toLowerCase().includes(searchTerm) || 
+                                      voter.voterId.toLowerCase().includes(searchTerm) ||
+                                      (voter.fatherName && voter.fatherName.toLowerCase().includes(searchTerm));
+                const matchesBooth = selectedBooth ? voter.booth === selectedBooth : true;
+                return matchesSearch && matchesBooth;
+            });
+            renderVoterList(filteredVoters);
+        }
+
+        // --- Other functions (showVoterDetails, showFormModal, etc.) remain largely the same, only data handling changes ---
+        
+        function showVoterDetails(voterId) {
+            const voter = voters.find(v => v.id == voterId);
+            if (!voter) return;
+
+            const age = calculateAge(voter.dob);
+            const genderText = voter.gender === 'Male' ? 'పురుషుడు' : 'స్త్రీ';
+            
+            let maritalStatusText = '';
+            if (voter.maritalStatus === 'Married') {
+                maritalStatusText = voter.gender === 'Male' ? 'వివాహితుడు' : 'వివాహిత';
+            } else {
+                maritalStatusText = voter.gender === 'Male' ? 'అవివాహితుడు' : 'అవివాహిత';
+            }
+            
+            let familyMembersHTML = '<p class="text-gray-500">సమాచారం లేదు.</p>';
+            if (voter.familyMembers && voter.familyMembers.length > 0) {
+                familyMembersHTML = '<ul class="list-disc list-inside text-gray-900">';
+                voter.familyMembers.forEach(member => {
+                    familyMembersHTML += `<li>${member.name} (${member.relation})</li>`;
+                });
+                familyMembersHTML += '</ul>';
+            }
+
+            modalContentBody.innerHTML = `
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-blue-600">${voter.name}</h2>
+                        <p class="text-sm text-gray-500">${voter.voterId}</p>
+                    </div>
+                    <span class="text-sm font-bold px-3 py-1.5 rounded-full ${getStatusBgClass(voter.status)}">${voter.status === 'Supporter' ? 'మద్దతుదారు' : voter.status === 'Neutral' ? 'తటస్థం' : 'ప్రత్యర్థి'}</span>
+                </div>
+                 
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">వ్యక్తిగత వివరాలు</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div><p class="font-semibold text-gray-700">వయసు:</p><p class="text-gray-900">${age} సం.</p></div>
+                        <div><p class="font-semibold text-gray-700">లింగం:</p><p class="text-gray-900">${genderText}</p></div>
+                        <div><p class="font-semibold text-gray-700">వైవాహిక స్థితి:</p><p class="text-gray-900">${maritalStatusText}</p></div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">వృత్తి & విద్య</h3>
+                     <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div><p class="font-semibold text-gray-700">వృత్తి:</p><p class="text-gray-900">${voter.occupation || 'N/A'}</p></div>
+                        <div><p class="font-semibold text-gray-700">విద్య:</p><p class="text-gray-900">${voter.education || 'N/A'}</p></div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">కుటుంబ వివరాలు</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-2">
+                        <div><p class="font-semibold text-gray-700">తండ్రి పేరు:</p><p class="text-gray-900">${voter.fatherName}</p></div>
+                        <div><p class="font-semibold text-gray-700">తల్లి పేరు:</p><p class="text-gray-900">${voter.motherName || 'N/A'}</p></div>
+                         ${voter.spouseName ? `<div><p class="font-semibold text-gray-700">${voter.gender === 'Male' ? 'భార్య' : 'భర్త'}:</p><p class="text-gray-900">${voter.spouseName}</p></div>` : ''}
+                        <div><p class="font-semibold text-gray-700">ఇంటి పెద్ద:</p><p class="text-gray-900">${voter.houseHead || 'N/A'}</p></div>
+                        <div><p class="font-semibold text-gray-700">కుటుంబ పెద్ద:</p><p class="text-gray-900">${voter.familyHead || 'N/A'}</p></div>
+                    </div>
+                    <div class="text-sm"><p class="font-semibold text-gray-700">కుటుంబ సభ్యులు:</p>${familyMembersHTML}</div>
+                </div>
+
+                 <div>
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">సంప్రదింపు వివరాలు</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div><p class="font-semibold text-gray-700">ఫోన్ నంబర్:</p><p class="text-gray-900">${voter.phone}</p></div>
+                        <div><p class="font-semibold text-gray-700">బూత్:</p><p class="text-gray-900">${voter.booth}</p></div>
+                        <div class="col-span-1 sm:col-span-2"><p class="font-semibold text-gray-700">చిరునామా:</p><p class="text-gray-900">${voter.address}</p></div>
+                    </div>
+                </div>
+                <div class="mt-6 text-right">
+                    <button id="edit-voter-btn" data-id="${voter.id}" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">వివరాలు మార్చు</button>
+                </div>
+            `;
+            voterModal.classList.remove('hidden');
+
+            document.getElementById('edit-voter-btn').addEventListener('click', (e) => {
+                voterModal.classList.add('hidden');
+                showFormModal(e.target.dataset.id);
+            });
+        }
+
+        function showFormModal(voterId = null) {
+            voterForm.reset();
+            const isEditMode = voterId !== null;
+            
+            if (isEditMode) {
+                formTitle.textContent = 'ఓటరు వివరాలు మార్చండి';
+                const voter = voters.find(v => v.id == voterId);
+                voterIdInput.value = voter.id;
+                nameInput.value = voter.name;
+                surnameInput.value = voter.surname;
+                voterIdInputEl.value = voter.voterId;
+                dobInput.value = voter.dob;
+                genderInput.value = voter.gender;
+                phoneInput.value = voter.phone;
+                fatherNameInput.value = voter.fatherName;
+                motherNameInput.value = voter.motherName;
+                occupationInput.value = voter.occupation;
+                educationInput.value = voter.education;
+                houseHeadInput.value = voter.houseHead;
+                familyHeadInput.value = voter.familyHead;
+                familyMembersInput.value = (voter.familyMembers || []).map(m => `${m.name} (${m.relation})`).join(', ');
+
+                genderInput.dispatchEvent(new Event('change'));
+                maritalStatusInput.value = voter.maritalStatus;
+                
+                maritalStatusInput.dispatchEvent(new Event('change'));
+                if(voter.maritalStatus === 'Married') {
+                    spouseNameInput.value = voter.spouseName;
+                }
+                
+                serialInput.value = voter.serial;
+                boothInput.value = voter.booth;
+                statusInput.value = voter.status;
+                addressInput.value = voter.address;
+
+            } else {
+                formTitle.textContent = 'కొత్త ఓటరును జోడించండి';
+                voterIdInput.value = ''; 
+                updateMaritalStatusOptions();
+            }
+            
+            formModal.classList.remove('hidden');
+        }
+
+        function getStatusBorderClass(status) {
+             switch (status) {
+                case 'Supporter': return 'status-supporter-border';
+                case 'Neutral': return 'status-neutral-border';
+                case 'Opposition': return 'status-opposition-border';
+                default: return 'border-gray-300';
+            }
+        }
+        function getStatusBgClass(status) {
+             switch (status) {
+                case 'Supporter': return 'status-supporter-bg';
+                case 'Neutral': return 'status-neutral-bg';
+                case 'Opposition': return 'status-opposition-bg';
+                default: return 'bg-gray-400 text-white';
+            }
+        }
+        
+        function updateMaritalStatusOptions() {
+            const selectedGender = genderInput.value;
+            maritalStatusInput.innerHTML = '<option value="" disabled selected>వైవాహిక స్థితి</option>';
+
+            if (selectedGender === 'Male') {
+                maritalStatusInput.innerHTML += `<option value="Unmarried">అవివాహితుడు</option><option value="Married">వివాహితుడు</option>`;
+                spouseNameInput.placeholder = "భార్య పేరు";
+            } else if (selectedGender === 'Female') {
+                maritalStatusInput.innerHTML += `<option value="Unmarried">అవివాహిత</option><option value="Married">వివాహిత</option>`;
+                spouseNameInput.placeholder = "భర్త పేరు";
+            }
+            maritalStatusInput.value = "";
+            spouseNameInput.classList.add('hidden');
+        }
+
+        // --- 4. EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', () => { applyFilters(); });
+        searchInput.addEventListener('input', applyFilters);
+        boothFilter.addEventListener('change', applyFilters);
+        voterListContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.voter-card');
+            if (card) { showVoterDetails(card.dataset.id); }
+        });
+        
+        closeModalBtn.addEventListener('click', () => { voterModal.classList.add('hidden'); });
+        addVoterBtn.addEventListener('click', () => showFormModal());
+        
+        closeFormModalBtn.addEventListener('click', () => formModal.classList.add('hidden'));
+        genderInput.addEventListener('change', updateMaritalStatusOptions);
+        maritalStatusInput.addEventListener('change', (e) => {
+            spouseNameInput.classList.toggle('hidden', e.target.value !== 'Married');
+        });
+
+        voterForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const id = voterIdInput.value;
+            
+            const familyMembersArray = familyMembersInput.value.split(',')
+                .map(item => item.trim())
+                .filter(item => item)
+                .map(item => {
+                    const match = item.match(/^(.*?)\s*\((.*?)\)$/);
+                    return match ? { name: match[1].trim(), relation: match[2].trim() } : { name: item, relation: 'N/A' };
+                });
+            
+            const teluguName = nameInput.value;
+            const teluguSurname = surnameInput.value;
+
+            const voterData = {
+                name: teluguName,
+                surname: teluguSurname,
+                englishName: `${teluguSurname.toLowerCase()} ${teluguName.toLowerCase()}`.replace(/[\u0C00-\u0C7F]/g, ''), // Simple transliteration placeholder
+                voterId: voterIdInputEl.value,
+                dob: dobInput.value,
+                gender: genderInput.value,
+                phone: phoneInput.value,
+                fatherName: fatherNameInput.value,
+                motherName: motherNameInput.value,
+                maritalStatus: maritalStatusInput.value,
+                spouseName: maritalStatusInput.value === 'Married' ? spouseNameInput.value : null,
+                occupation: occupationInput.value,
+                education: educationInput.value,
+                houseHead: houseHeadInput.value,
+                familyHead: familyHeadInput.value,
+                familyMembers: familyMembersArray,
+                serial: serialInput.value,
+                booth: boothInput.value,
+                status: statusInput.value,
+                address: addressInput.value
+            };
+
+            if (id) { // Edit Mode
+                const index = voters.findIndex(v => v.id == id);
+                voters[index] = { ...voters[index], ...voterData };
+                alert('వివరాలు విజయవంతంగా మార్చబడ్డాయి!');
+            } else { // Add Mode
+                voterData.id = Date.now(); 
+                voters.unshift(voterData); 
+                alert('కొత్త ఓటరు విజయవంతంగా జోడించబడ్డారు!');
+            }
+            
+            formModal.classList.add('hidden');
+            applyFilters();
+        });
+
+        voterModal.addEventListener('click', (e) => { if (e.target === voterModal) { voterModal.classList.add('hidden'); } });
+        formModal.addEventListener('click', (e) => { if (e.target === formModal) { formModal.classList.add('hidden'); } });
+    </script>
+</body>
+</html>
+
 
