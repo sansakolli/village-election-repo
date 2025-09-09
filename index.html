@@ -37,7 +37,7 @@
 <body class="antialiased">
 
     <!-- Header -->
-    <header class="bg-blue-600 text-white shadow-md sticky top-0 z-40">
+    <header class="bg-blue-600 text-white shadow-md sticky top-0 z-40 transform transition-transform duration-300">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <h1 class="text-xl font-bold">ఎన్నికల డాష్‌బోర్డ్</h1>
         </div>
@@ -181,6 +181,8 @@
         const boothInput = document.getElementById('booth-input');
         const statusInput = document.getElementById('status-input');
         const addressInput = document.getElementById('address-input');
+        const appHeader = document.querySelector('header');
+        const filtersBar = document.getElementById('filters-bar');
 
         // --- 3. FUNCTIONS ---
         function calculateAge(dobString) {
@@ -415,8 +417,31 @@
             spouseNameInput.classList.add('hidden');
         }
 
+        // Header hide/show when filters stick to top
+        function updateHeaderVisibility() {
+            if (!appHeader || !filtersBar) return;
+            const headerHeight = appHeader.getBoundingClientRect().height;
+            const filtersTop = filtersBar.getBoundingClientRect().top;
+            const shouldHideHeader = filtersTop <= headerHeight + 1; // when filters are at/near header bottom
+            appHeader.classList.toggle('-translate-y-full', shouldHideHeader);
+            // Adjust filters offset so it occupies the top when header hidden
+            if (shouldHideHeader) {
+                filtersBar.classList.remove('top-[60px]');
+                filtersBar.classList.add('top-0');
+            } else {
+                filtersBar.classList.remove('top-0');
+                filtersBar.classList.add('top-[60px]');
+            }
+        }
+
         // --- 4. EVENT LISTENERS ---
-        document.addEventListener('DOMContentLoaded', () => { applyFilters(); });
+        document.addEventListener('DOMContentLoaded', () => { 
+            applyFilters();
+            updateHeaderVisibility();
+        });
+        document.addEventListener('scroll', updateHeaderVisibility, { passive: true });
+        window.addEventListener('resize', updateHeaderVisibility);
+
         searchInput.addEventListener('input', applyFilters);
         boothFilter.addEventListener('change', applyFilters);
         voterListContainer.addEventListener('click', (e) => {
