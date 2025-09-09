@@ -37,11 +37,12 @@
 <body class="antialiased">
 
     <!-- Header -->
-    <header class="bg-blue-600 text-white shadow-md sticky top-0 z-40 transform transition-transform duration-300">
+    <header class="bg-blue-600 text-white shadow-md fixed top-0 left-0 right-0 z-40 transform transition-transform duration-300">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <h1 class="text-xl font-bold">ఎన్నికల డాష్‌బోర్డ్</h1>
         </div>
     </header>
+    <div id="header-spacer" class="h-[60px]"></div>
     
     <!-- Statistics Panel -->
     <div id="stats-panel" class="container mx-auto px-4 pt-4 bg-[#f0f2f5] pb-3">
@@ -67,6 +68,8 @@
 
     <!-- Main Content -->
     <main class="container mx-auto p-4 pt-0">
+        <!-- Sticky sentinel to detect when filters reach header -->
+        <div id="filters-sentinel" class="h-0"></div>
         <!-- Filters -->
         <div id="filters-bar" class="bg-white p-3 rounded-lg shadow-md mb-4 sticky top-[60px] z-30">
             <div class="flex flex-col md:flex-row gap-3">
@@ -183,6 +186,8 @@
         const addressInput = document.getElementById('address-input');
         const appHeader = document.querySelector('header');
         const filtersBar = document.getElementById('filters-bar');
+        const headerSpacer = document.getElementById('header-spacer');
+        const filtersSentinel = document.getElementById('filters-sentinel');
 
         // --- 3. FUNCTIONS ---
         function calculateAge(dobString) {
@@ -417,14 +422,40 @@
             spouseNameInput.classList.add('hidden');
         }
 
-        // Header hide/show when filters stick to top
+        // Header hide/show when filters reach the top using IntersectionObserver
+        function initHeaderObserver() {
+            if (!('IntersectionObserver' in window)) {
+                // Fallback to scroll handler
+                window.addEventListener('scroll', updateHeaderVisibility, { passive: true });
+                window.addEventListener('resize', updateHeaderVisibility);
+                updateHeaderVisibility();
+                return;
+            }
+            const headerHeight = headerSpacer ? (headerSpacer.offsetHeight || 60) : 60;
+            const observer = new IntersectionObserver((entries) => {
+                const entry = entries[0];
+                const shouldHideHeader = !entry.isIntersecting; // sentinel is above the top line
+                appHeader.classList.toggle('-translate-y-full', shouldHideHeader);
+                if (headerSpacer) headerSpacer.style.height = shouldHideHeader ? '0px' : '60px';
+                if (shouldHideHeader) {
+                    filtersBar.classList.remove('top-[60px]');
+                    filtersBar.classList.add('top-0');
+                } else {
+                    filtersBar.classList.remove('top-0');
+                    filtersBar.classList.add('top-[60px]');
+                }
+            }, { root: null, threshold: 0, rootMargin: `-${headerHeight}px 0px 0px 0px` });
+            if (filtersSentinel) observer.observe(filtersSentinel);
+        }
+
+        // Fallback scroll-based visibility
         function updateHeaderVisibility() {
-            if (!appHeader || !filtersBar) return;
-            const headerHeight = appHeader.getBoundingClientRect().height;
+            if (!appHeader || !filtersBar || !headerSpacer) return;
+            const headerHeight = headerSpacer.offsetHeight || 60;
             const filtersTop = filtersBar.getBoundingClientRect().top;
-            const shouldHideHeader = filtersTop <= headerHeight + 1; // when filters are at/near header bottom
+            const shouldHideHeader = filtersTop <= headerHeight + 1;
             appHeader.classList.toggle('-translate-y-full', shouldHideHeader);
-            // Adjust filters offset so it occupies the top when header hidden
+            headerSpacer.style.height = shouldHideHeader ? '0px' : '60px';
             if (shouldHideHeader) {
                 filtersBar.classList.remove('top-[60px]');
                 filtersBar.classList.add('top-0');
@@ -437,9 +468,11 @@
         // --- 4. EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', () => { 
             applyFilters();
+            initHeaderObserver();
             updateHeaderVisibility();
         });
-        document.addEventListener('scroll', updateHeaderVisibility, { passive: true });
+        // Keep for robustness
+        window.addEventListener('scroll', updateHeaderVisibility, { passive: true });
         window.addEventListener('resize', updateHeaderVisibility);
 
         searchInput.addEventListener('input', applyFilters);
