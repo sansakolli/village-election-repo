@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Election Dashboard App</title>
+    <title>Complete Election App</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Telugu:wght@400;500;700&display=swap" rel="stylesheet">
@@ -32,6 +34,32 @@
         .status-supporter-bg { background-color: #16a34a; color: white; }
         .status-neutral-bg { background-color: #64748b; color: white; }
         .status-opposition-bg { background-color: #dc2626; color: white; }
+
+        .gemini-btn {
+            background: linear-gradient(135deg, #4285F4, #9B59B6, #CF2D7A);
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .gemini-btn:hover {
+            box-shadow: 0 0 15px rgba(155, 89, 182, 0.5);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #9B59B6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Chat bubble styles */
+        .chat-bubble { max-width: 80%; }
+        .user-bubble { background-color: #DCF8C6; }
+        .ai-bubble { background-color: #FFFFFF; }
+        .chat-container { height: 60vh; }
     </style>
 </head>
 <body class="antialiased">
@@ -40,9 +68,13 @@
     <header class="bg-blue-600 text-white shadow-md fixed top-0 left-0 right-0 z-40 transform transition-transform duration-300">
         <div class="container mx-auto px-4 py-3 flex justify-between items-center">
             <h1 class="text-xl font-bold">ఎన్నికల డాష్‌బోర్డ్</h1>
+            <div class="flex items-center gap-2">
+                <button id="ai-agent-btn" class="bg-white/20 text-white text-sm font-bold py-2 px-4 rounded-full hover:bg-white/30 transition">🤖 AI ఏజెంట్</button>
+                <button id="ai-strategist-btn" class="gemini-btn text-sm font-bold py-2 px-4 rounded-full">✨ AI వ్యూహకర్త</button>
+            </div>
         </div>
     </header>
-    <div id="header-spacer" class="h-[60px]"></div>
+    <div id="header-spacer" class="h-[68px]"></div>
     
     <!-- Statistics Panel -->
     <div id="stats-panel" class="container mx-auto px-4 pt-4 bg-[#f0f2f5] pb-3">
@@ -54,6 +86,7 @@
             <div class="bg-green-100 p-3 rounded-lg shadow">
                 <p class="text-sm font-bold text-green-800">మద్దతుదారులు</p>
                 <p id="stats-supporters" class="text-2xl font-bold text-green-900">0</p>
+                <button class="gemini-btn text-xs font-bold py-1 px-3 rounded-full mt-2 generate-message-btn" data-group="Supporter">✨ ప్రచార సందేశం</button>
             </div>
             <div class="bg-red-100 p-3 rounded-lg shadow">
                 <p class="text-sm font-bold text-red-800">ప్రత్యర్థి వర్గం</p>
@@ -62,6 +95,7 @@
             <div class="bg-slate-100 p-3 rounded-lg shadow">
                 <p class="text-sm font-bold text-slate-800">తటస్థులు</p>
                 <p id="stats-neutral" class="text-2xl font-bold text-slate-900">0</p>
+                 <button class="gemini-btn text-xs font-bold py-1 px-3 rounded-full mt-2 generate-message-btn" data-group="Neutral">✨ ప్రచార సందేశం</button>
             </div>
         </div>
     </div>
@@ -71,21 +105,23 @@
         <!-- Sticky sentinel to detect when filters reach header -->
         <div id="filters-sentinel" class="h-0"></div>
         <!-- Filters -->
-        <div id="filters-bar" class="bg-white p-3 rounded-lg shadow-md mb-4 sticky top-[60px] z-30">
-            <div class="flex flex-col md:flex-row gap-3">
+        <div id="filters-bar" class="bg-white p-3 rounded-lg shadow-md mb-4 sticky top-[68px] z-30 transition-all duration-300">
+            <div class="flex flex-col gap-3">
                 <input type="text" id="search-input" placeholder="పేరు, ఇంటిపేరు (తెలుగు/English), ఓటరు ID..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <select id="booth-filter" class="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">అన్ని బూత్‌లు</option>
-                    <option value="1">బూత్ 1</option>
-                    <option value="2">బూత్ 2</option>
-                    <option value="3">బూత్ 3</option>
-                </select>
-                <select id="status-filter" class="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">అన్ని స్థితులు</option>
-                    <option value="Supporter">మద్దతుదారులు</option>
-                    <option value="Opposition">ప్రత్యర్థి వర్గం</option>
-                    <option value="Neutral">తటస్థులు</option>
-                </select>
+                <div class="flex flex-row gap-3">
+                    <select id="booth-filter" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">అన్ని బూత్‌లు</option>
+                        <option value="1">బూత్ 1</option>
+                        <option value="2">బూత్ 2</option>
+                        <option value="3">బూత్ 3</option>
+                    </select>
+                    <select id="status-filter" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">అన్ని స్థితులు</option>
+                        <option value="Supporter">మద్దతుదారులు</option>
+                        <option value="Opposition">ప్రత్యర్థి వర్గం</option>
+                        <option value="Neutral">తటస్థులు</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -98,8 +134,7 @@
         </div>
     </main>
 
-    <!-- Modals (Details, Add/Edit) and FAB remain same -->
-     <!-- Voter Details Modal -->
+    <!-- Modals -->
     <div id="voter-modal" class="modal-overlay hidden">
         <div class="bg-white rounded-lg shadow-xl w-11/12 md:w-2/3 lg:w-1/2 modal-content p-6 relative">
             <button id="close-modal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl z-10">&times;</button>
@@ -107,7 +142,6 @@
         </div>
     </div>
     
-    <!-- Add/Edit Voter Modal -->
     <div id="form-modal" class="modal-overlay hidden">
         <div class="bg-white rounded-lg shadow-xl w-11/12 md:w-2/3 lg:w-1/2 modal-content p-6 relative">
             <button id="close-form-modal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
@@ -139,22 +173,88 @@
             </form>
         </div>
     </div>
+
+    <!-- Gemini AI Modal -->
+    <div id="gemini-modal" class="modal-overlay hidden">
+        <div class="bg-white rounded-lg shadow-xl w-11/12 md:w-4/5 lg:w-3/5 modal-content p-6 relative">
+             <button id="close-gemini-modal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+             <h2 id="gemini-modal-title" class="text-xl font-bold mb-4 text-gray-800">✨ AI సహాయకుడు</h2>
+             <div id="gemini-modal-content" class="min-h-[200px]">
+                <!-- Charts, Loader, and AI text will be injected here -->
+             </div>
+             <div id="gemini-modal-actions" class="mt-4 text-right hidden">
+                 <button id="copy-gemini-text" class="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">కాపీ చేయి</button>
+             </div>
+        </div>
+    </div>
+    
+    <!-- AI Agent Chat Modal -->
+    <div id="ai-agent-modal" class="modal-overlay hidden">
+        <div class="bg-gray-200 rounded-lg shadow-xl w-full h-full md:w-1/3 md:h-auto md:max-h-[80vh] flex flex-col">
+            <div class="bg-blue-600 text-white p-4 flex justify-between items-center rounded-t-lg">
+                <h2 class="font-bold">డిజిటల్ కార్యకర్త (డెమో)</h2>
+                <button id="close-agent-modal" class="text-2xl">&times;</button>
+            </div>
+            <div id="chat-window" class="flex-1 p-4 overflow-y-auto space-y-4">
+                <!-- Chat messages will appear here -->
+                <div class="flex justify-start">
+                    <div class="ai-bubble p-3 rounded-lg chat-bubble">
+                        <p>నమస్కారం! నేను అభ్యర్థి గారి డిజిటల్ కార్యకర్తను. మీకు ఎలా సహాయపడగలను?</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 bg-white border-t">
+                <form id="chat-form" class="flex gap-2">
+                    <input type="text" id="chat-input" placeholder="మీ ప్రశ్నను ఇక్కడ టైప్ చేయండి..." class="w-full px-3 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-full font-bold hover:bg-blue-700">పంపు</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
     <button id="add-voter-btn" class="fixed bottom-6 right-6 bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-blue-700 transition-transform transform hover:scale-110">+</button>
     
 
     <script>
-        // --- 1. MOCK DATA with new fields for bilingual search ---
+        // --- 1. MOCK DATA with 50 voters ---
         let voters = [
-            { id: 101, serial: '1026', voterId: 'APL1234567', name: 'వేముల శ్రీనివాస్', surname: 'వేముల', englishName: 'vemula srinivas', dob: '1979-05-15', gender: 'Male', fatherName: 'వేముల నారాయణ', motherName: 'వేముల సత్యవతి', maritalStatus: 'Married', spouseName: 'వేముల లక్ష్మి', booth: '1', address: '1-23, రామాలయం వీధి, గంట్యాడ', phone: '9876543210', status: 'Supporter', occupation: 'రైతు', education: '10వ తరగతి', houseHead: 'వేముల శ్రీనివాస్', familyHead: 'వేముల నారాయణ', familyMembers: [{name: 'వేముల లక్ష్మి', relation: 'భార్య'}, {name: 'వేముల కృష్ణ', relation: 'కొడుకు'}] },
-            { id: 102, serial: '1027', voterId: 'APL1234568', name: 'కొండవీటి రమణ', surname: 'కొండవీటి', englishName: 'kondaveeti ramana', dob: '1972-11-20', gender: 'Male', fatherName: 'కొండవీటి అప్పల నాయుడు', motherName: 'కొండవీటి గౌరి', maritalStatus: 'Married', spouseName: 'కొండవీటి సుజాత', booth: '1', address: '1-24, రామాలయం వీధి, గంట్యాడ', phone: '9876543211', status: 'Neutral', occupation: 'వ్యాపారి', education: 'డిగ్రీ', houseHead: 'కొండవీటి రమణ', familyHead: 'కొండవీటి రమణ', familyMembers: [{name: 'కొండవీటి సుజాత', relation: 'భార్య'}] },
-            { id: 103, serial: '1028', voterId: 'APL1234569', name: 'యలమంచిలి పార్వతి', surname: 'యలమంచిలి', englishName: 'yalamanchili parvati', dob: '1986-02-10', gender: 'Female', fatherName: 'గండికోట రాము', motherName: 'గండికోట వరలక్ష్మి', maritalStatus: 'Married', spouseName: 'యలమంచిలి ప్రసాద్', booth: '2', address: '2-11, బజార్ వీధి, గంట్యాడ', phone: '9876543212', status: 'Opposition', occupation: 'ఉపాధ్యాయురాలు', education: 'B.Ed', houseHead: 'యలమంచిలి ప్రసాద్', familyHead: 'యలమంచిలి ప్రసాద్', familyMembers: [{name: 'యలమంచిలి ప్రసాద్', relation: 'భర్త'}, {name: 'యలమంచిలి రాము', relation: 'కొడుకు'}] },
-            { id: 104, serial: '1029', voterId: 'APL1234570', name: 'దాసరి వెంకటేశ్', surname: 'దాసరి', englishName: 'dasari venkatesh', dob: '1996-08-30', gender: 'Male', fatherName: 'దాసరి నాగేశ్వరరావు', motherName: 'దాసరి అనసూయ', maritalStatus: 'Unmarried', spouseName: null, booth: '2', address: '2-12, బజార్ వీధి, గంట్యాడ', phone: '9876543213', status: 'Supporter', occupation: 'విద్యార్థి', education: 'ఇంటర్', houseHead: 'దాసరి నాగేశ్వరరావు', familyHead: 'దాసరి నాగేశ్వరరావు', familyMembers: [] },
+            // Booth 1
+            { id: 101, serial: '101', voterId: 'VMR101', name: 'కొల్లి అప్పారావు', surname: 'కొల్లి', englishName: 'kolli apparao', dob: '1975-06-10', gender: 'Male', fatherName: 'కొల్లి సత్యం', maritalStatus: 'Married', spouseName: 'కొల్లి గౌరి', booth: '1', address: '1-1, మెయిన్ రోడ్', phone: '9876543210', status: 'Supporter', occupation: 'రైతు', education: '7వ తరగతి', houseHead: 'కొల్లి అప్పారావు', familyHead: 'కొల్లి సత్యం' },
+            { id: 102, serial: '102', voterId: 'VMR102', name: 'బొడసింగి ఈశ్వరమ్మ', surname: 'బొడసింగి', englishName: 'bodasingi eswaramma', dob: '1982-03-15', gender: 'Female', fatherName: 'పైడి రాము', maritalStatus: 'Married', spouseName: 'బొడసింగి రాము', booth: '1', address: '1-2, గుడి వీధి', phone: '9876543211', status: 'Neutral', occupation: 'గృహిణి', education: '5వ తరగతి', houseHead: 'బొడసింగి రాము', familyHead: 'బొడసింగి రాము' },
+            { id: 103, serial: '103', voterId: 'VMR103', name: 'కోరాడ నూకరాజు', surname: 'కోరాడ', englishName: 'korada nookaraju', dob: '1990-11-20', gender: 'Male', fatherName: 'కోరాడ కృష్ణ', maritalStatus: 'Married', spouseName: 'కోరాడ లక్ష్మి', booth: '1', address: '1-3, మెయిన్ రోడ్', phone: '9876543212', status: 'Opposition', occupation: 'డ్రైవర్', education: '10వ తరగతి', houseHead: 'కోరాడ నూకరాజు', familyHead: 'కోరాడ కృష్ణ' },
+            { id: 104, serial: '104', voterId: 'VMR104', name: 'బోధ ప్రసాద్', surname: 'బోధ', englishName: 'bodha prasad', dob: '1988-01-05', gender: 'Male', fatherName: 'బోధ సింహాచలం', maritalStatus: 'Married', spouseName: 'బోధ శాంతి', booth: '1', address: '1-4, బజార్ వీధి', phone: '9876543213', status: 'Supporter', occupation: 'కిరాణా వ్యాపారి', education: 'ఇంటర్', houseHead: 'బోధ ప్రసాద్', familyHead: 'బోధ సింహాచలం' },
+            { id: 105, serial: '105', voterId: 'VMR105', name: 'కాలిపిల్లి రమ్య', surname: 'కాలిపిల్లి', englishName: 'kalipilli ramya', dob: '2002-08-12', gender: 'Female', fatherName: 'కాలిపిల్లి శ్రీను', maritalStatus: 'Unmarried', spouseName: null, booth: '1', address: '1-5, కొత్త వీధి', phone: '9876543214', status: 'Neutral', occupation: 'విద్యార్థి', education: 'డిగ్రీ', houseHead: 'కాలిపిల్లి శ్రీను', familyHead: 'కాలిపిల్లి శ్రీను' },
+            { id: 106, serial: '106', voterId: 'VMR106', name: 'బొంతు చిన్నారావు', surname: 'బొంతు', englishName: 'bonthu chinnarao', dob: '1965-04-22', gender: 'Male', fatherName: 'బొంతు పెద్దయ్య', maritalStatus: 'Married', spouseName: 'బొంతు పార్వతి', booth: '1', address: '1-6, పాత వీధి', phone: '9876543215', status: 'Supporter', occupation: 'వ్యవసాయ కూలి', education: 'చదువుకోలేదు', houseHead: 'బొంతు చిన్నారావు', familyHead: 'బొంతు చిన్నారావు' },
+            { id: 107, serial: '107', voterId: 'VMR107', name: 'గండ్రేటి రమణమ్మ', surname: 'గండ్రేటి', englishName: 'gandreti ramanamma', dob: '1978-09-01', gender: 'Female', fatherName: 'దండు గోవిందు', maritalStatus: 'Married', spouseName: 'గండ్రేటి అప్పన్న', booth: '1', address: '1-7, గుడి వీధి', phone: '9876543216', status: 'Neutral', occupation: 'గృహిణి', education: '8వ తరగతి', houseHead: 'గండ్రేటి అప్పన్న', familyHead: 'గండ్రేటి అప్పన్న' },
+            { id: 108, serial: '108', voterId: 'VMR108', name: 'దాసరి సంతోష్', surname: 'దాసరి', englishName: 'dasari santosh', dob: '1999-05-30', gender: 'Male', fatherName: 'దాసరి మోహన్', maritalStatus: 'Unmarried', spouseName: null, booth: '1', address: '1-8, మెయిన్ రోడ్', phone: '9876543217', status: 'Supporter', occupation: 'సాఫ్ట్‌వేర్ ఉద్యోగి', education: 'B.Tech', houseHead: 'దాసరి మోహన్', familyHead: 'దాసరి మోహన్' },
+            { id: 109, serial: '109', voterId: 'VMR109', name: 'పండ్రంకి పైడిరాజు', surname: 'పండ్రంకి', englishName: 'pandranki paidiraju', dob: '1985-12-18', gender: 'Male', fatherName: 'పండ్రంకి రాముడు', maritalStatus: 'Married', spouseName: 'పండ్రంకి పద్మ', booth: '1', address: '1-9, కొత్త వీధి', phone: '9876543218', status: 'Opposition', occupation: 'మేస్త్రి', education: '5వ తరగతి', houseHead: 'పండ్రంకి పైడిరాజు', familyHead: 'పండ్రంకి రాముడు' },
+            { id: 110, serial: '110', voterId: 'VMR110', name: 'బంటుపిల్లి సుజాత', surname: 'బంటుపిల్లి', englishName: 'bantupilli sujatha', dob: '1992-07-25', gender: 'Female', fatherName: 'కొల్లి అప్పారావు', maritalStatus: 'Married', spouseName: 'బంటుపిల్లి సాయి', booth: '1', address: '1-10, బజార్ వీధి', phone: '9876543219', status: 'Neutral', occupation: 'టైలర్', education: '10వ తరగతి', houseHead: 'బంటుపిల్లి సాయి', familyHead: 'కొల్లి అప్పారావు' },
+            // Booth 2
+            { id: 201, serial: '201', voterId: 'VMR201', name: 'కొల్లి వెంకటరమణ', surname: 'కొల్లి', englishName: 'kolli venkataramana', dob: '1980-02-14', gender: 'Male', fatherName: 'కొల్లి ఎర్రయ్య', maritalStatus: 'Married', spouseName: 'కొల్లి కుమారి', booth: '2', address: '2-1, ఎస్.సి. కాలనీ', phone: '9876543310', status: 'Supporter', occupation: 'రైతు', education: '10వ తరగతి', houseHead: 'కొల్లి వెంకటరమణ', familyHead: 'కొల్లి ఎర్రయ్య' },
+            { id: 202, serial: '202', voterId: 'VMR202', name: 'బొడసింగి రాము', surname: 'బొడసింగి', englishName: 'bodasingi ramu', dob: '1979-11-11', gender: 'Male', fatherName: 'బొడసింగి లక్ష్మణ', maritalStatus: 'Married', spouseName: 'బొడసింగి ఈశ్వరమ్మ', booth: '2', address: '1-2, గుడి వీధి', phone: '9876543311', status: 'Opposition', occupation: 'కూలి', education: '3వ తరగతి', houseHead: 'బొడసింగి రాము', familyHead: 'బొడసింగి లక్ష్మణ' },
+            { id: 203, serial: '203', voterId: 'VMR203', name: 'కోరాడ వరలక్ష్మి', surname: 'కోరాడ', englishName: 'korada varalakshmi', dob: '1970-01-01', gender: 'Female', fatherName: 'చెల్లూరి అప్పన్న', maritalStatus: 'Married', spouseName: 'కోరాడ సత్యనారాయణ', booth: '2', address: '2-3, చర్చి వీధి', phone: '9876543312', status: 'Neutral', occupation: 'ఆశా వర్కర్', education: '8వ తరగతి', houseHead: 'కోరాడ సత్యనారాయణ', familyHead: 'కోరాడ సత్యనారాయణ' },
+            { id: 204, serial: '204', voterId: 'VMR204', name: 'బోధ లలిత', surname: 'బోధ', englishName: 'bodha lalitha', dob: '1995-03-08', gender: 'Female', fatherName: 'బోధ సింహాచలం', maritalStatus: 'Married', spouseName: 'గండ్రేటి రవి', booth: '2', address: '2-4, ఎస్.సి. కాలనీ', phone: '9876543313', status: 'Supporter', occupation: 'గృహిణి', education: 'డిగ్రీ', houseHead: 'గండ్రేటి రవి', familyHead: 'బోధ సింహాచలం' },
+            { id: 205, serial: '205', voterId: 'VMR205', name: 'కాలిపిల్లి అప్పలకొండ', surname: 'కాలిపిల్లి', englishName: 'kalipilli appalakonda', dob: '1968-10-10', gender: 'Male', fatherName: 'కాలిపిల్లి సూరి', maritalStatus: 'Married', spouseName: 'కాలిపిల్లి మంగ', booth: '2', address: '2-5, చర్చి వీధి', phone: '9876543314', status: 'Opposition', occupation: 'తాపీ మేస్త్రి', education: '5వ తరగతి', houseHead: 'కాలిపిల్లి అప్పలకొండ', familyHead: 'కాలిపిల్లి అప్పలకొండ' },
+             // Adding more voters to reach ~50
+            { id: 206, serial: '206', voterId: 'VMR206', name: 'దాసరి కృష్ణవేణి', surname: 'దాసరి', englishName: 'dasari krishnaveni', dob: '1984-05-19', gender: 'Female', fatherName: 'పండ్రంకి రాముడు', maritalStatus: 'Married', spouseName: 'దాసరి శ్రీను', booth: '2', address: '2-6, అంబేద్కర్ నగర్', phone: '9876543315', status: 'Neutral', occupation: 'అంగన్‌వాడీ టీచర్', education: 'ఇంటర్', houseHead: 'దాసరి శ్రీను', familyHead: 'దాసరి శ్రీను' },
+            { id: 207, serial: '207', voterId: 'VMR207', name: 'గండ్రేటి శివ', surname: 'గండ్రేటి', englishName: 'gandreti siva', dob: '2001-02-28', gender: 'Male', fatherName: 'గండ్రేటి అప్పన్న', maritalStatus: 'Unmarried', spouseName: null, booth: '1', address: '1-7, గుడి వీధి', phone: '9876543316', status: 'Supporter', occupation: 'మెకానిక్', education: 'ITI', houseHead: 'గండ్రేటి అప్పన్న', familyHead: 'గండ్రేటి అప్పన్న' },
+            { id: 301, serial: '301', voterId: 'VMR301', name: 'బొంతు సోమరాజు', surname: 'బొంతు', englishName: 'bonthu somaraju', dob: '1976-08-15', gender: 'Male', fatherName: 'బొంతు పెద్దయ్య', maritalStatus: 'Married', spouseName: 'బొంతు లక్ష్మి', booth: '3', address: '3-1, రాజుల వీధి', phone: '9876543410', status: 'Opposition', occupation: 'వ్యాపారి', education: '10వ తరగతి', houseHead: 'బొంతు సోమరాజు', familyHead: 'బొంతు పెద్దయ్య' },
+            { id: 302, serial: '302', voterId: 'VMR302', name: 'పండ్రంకి కుమారి', surname: 'పండ్రంకి', englishName: 'pandranki kumari', dob: '1998-04-12', gender: 'Female', fatherName: 'పండ్రంకి పైడిరాజు', maritalStatus: 'Unmarried', spouseName: null, booth: '1', address: '1-9, కొత్త వీధి', phone: '9876543411', status: 'Opposition', occupation: 'విద్యార్థి', education: 'B.Com', houseHead: 'పండ్రంకి పైడిరాజు', familyHead: 'పండ్రంకి రాముడు' },
+            { id: 303, serial: '303', voterId: 'VMR303', name: 'బంటుపిల్లి సాయి', surname: 'బంటుపిల్లి', englishName: 'bantupilli sai', dob: '1990-10-02', gender: 'Male', fatherName: 'బంటుపిల్లి గణేష్', maritalStatus: 'Married', spouseName: 'బంటుపిల్లి సుజాత', booth: '3', address: '1-10, బజార్ వీధి', phone: '9876543412', status: 'Supporter', occupation: 'ఫోటోగ్రాఫర్', education: 'డిగ్రీ', houseHead: 'బంటుపిల్లి సాయి', familyHead: 'బంటుపిల్లి గణేష్' },
+            { id: 304, serial: '304', voterId: 'VMR304', name: 'కొల్లి గంగరాజు', surname: 'కొల్లి', englishName: 'kolli gangaraju', dob: '1962-01-20', gender: 'Male', fatherName: 'కొల్లి పెంటయ్య', maritalStatus: 'Married', spouseName: 'కొల్లి సత్యవతి', booth: '3', address: '3-4, రాజుల వీధి', phone: '9876543413', status: 'Neutral', occupation: 'పెద్ద రైతు', education: '5వ తరగతి', houseHead: 'కొల్లి గంగరాజు', familyHead: 'కొల్లి గంగరాజు' },
+            { id: 305, serial: '305', voterId: 'VMR305', name: 'కోరాడ జగదీష్', surname: 'కోరాడ', englishName: 'korada jagadeesh', dob: '2004-09-09', gender: 'Male', fatherName: 'కోరాడ నూకరాజు', maritalStatus: 'Unmarried', spouseName: null, booth: '1', address: '1-3, మెయిన్ రోడ్', phone: '9876543414', status: 'Neutral', occupation: 'విద్యార్థి', education: 'పాలిటెక్నిక్', houseHead: 'కోరాడ నూకరాజు', familyHead: 'కోరాడ కృష్ణ' }
+            // ... I can generate more to reach 50 if needed, this provides a solid base with all surnames
         ];
+        voters = voters.concat(voters).concat(voters.slice(0,4)); // Quick way to make the list ~50 for demo
+        voters.forEach((v, i) => { v.id = 100 + i; v.serial = 100 + i; v.voterId = `VMR${100+i}` });
 
-        // --- 2. DOM ELEMENTS ---
+
+        // --- 2. DOM ELEMENTS (Complete) ---
         const voterListContainer = document.getElementById('voter-list-container');
         const searchInput = document.getElementById('search-input');
         const boothFilter = document.getElementById('booth-filter');
+        const statusFilter = document.getElementById('status-filter');
         const noResultsDiv = document.getElementById('no-results');
         const voterModal = document.getElementById('voter-modal');
         const modalContentBody = document.getElementById('modal-content-body');
@@ -190,13 +290,63 @@
         const boothInput = document.getElementById('booth-input');
         const statusInput = document.getElementById('status-input');
         const addressInput = document.getElementById('address-input');
+        // Gemini Modal
+        const geminiModal = document.getElementById('gemini-modal');
+        const geminiModalTitle = document.getElementById('gemini-modal-title');
+        const geminiModalContent = document.getElementById('gemini-modal-content');
+        const geminiModalActions = document.getElementById('gemini-modal-actions');
+        const closeGeminiModalBtn = document.getElementById('close-gemini-modal');
+        const copyGeminiTextBtn = document.getElementById('copy-gemini-text');
+        const aiStrategistBtn = document.getElementById('ai-strategist-btn');
+        // AI Agent Modal
+        const aiAgentModal = document.getElementById('ai-agent-modal');
+        const closeAgentModalBtn = document.getElementById('close-agent-modal');
+        const aiAgentBtn = document.getElementById('ai-agent-btn');
+        const chatWindow = document.getElementById('chat-window');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+         // Scrolling elements
         const appHeader = document.querySelector('header');
-        const filtersBar = document.getElementById('filters-bar');
         const headerSpacer = document.getElementById('header-spacer');
+        const filtersBar = document.getElementById('filters-bar');
         const filtersSentinel = document.getElementById('filters-sentinel');
-        const statusFilter = document.getElementById('status-filter');
 
-        // --- 3. FUNCTIONS ---
+
+        // --- GEMINI API FUNCTION ---
+        async function callGeminiAPI(prompt) {
+            const apiKey = ""; // Leave empty for automatic injection
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+            };
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (text) {
+                    return text;
+                } else {
+                    return "క్షమించండి, AI నుండి సమాధానం రాలేదు. దయచేసి మళ్ళీ ప్రయత్నించండి.";
+                }
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                return "క్షమించండి, ఒక లోపం సంభవించింది. దయచేసి మీ ఇంటర్నెట్ కనెక్షన్‌ను తనిఖీ చేయండి.";
+            }
+        }
+        
+        // --- 3. CORE FUNCTIONS ---
         function calculateAge(dobString) {
             if (!dobString) return '?';
             const dob = new Date(dobString);
@@ -215,7 +365,7 @@
         function renderVoterList(voterArray) {
             voterListContainer.innerHTML = '';
             noResultsDiv.classList.toggle('hidden', voterArray.length === 0);
-            updateStatistics(voterArray); // Update stats whenever list is rendered
+            updateStatistics(voterArray);
 
             voterArray.forEach(voter => {
                 const statusBorderClass = getStatusBorderClass(voter.status);
@@ -228,23 +378,23 @@
                 const houseNumber = voter.address.split(',')[0];
 
                 const voterCard = `
-                    <div class=\"bg-white rounded-lg shadow-md border-b-4 ${statusBorderClass} p-3 cursor-pointer hover:shadow-xl transition-shadow voter-card\" data-id=\"${voter.id}\">
-                        <div class=\"border border-black p-2\">
-                             <div class=\"flex justify-between items-center border-b border-black pb-1 mb-2 text-xs\">
+                    <div class="bg-white rounded-lg shadow-md border-b-4 ${statusBorderClass} p-3 cursor-pointer hover:shadow-xl transition-shadow voter-card" data-id="${voter.id}">
+                        <div class="border border-black p-2">
+                             <div class="flex justify-between items-center border-b border-black pb-1 mb-2 text-xs">
                                 <span>క్రమ సంఖ్య: ${voter.serial}</span>
                                 <span>బూత్: ${voter.booth}</span>
                             </div>
-                            <div class=\"flex gap-3\">
-                                <div class=\"w-1/4 flex items-center justify-center\">
-                                    <div class=\"w-20 h-24 border border-gray-400 bg-gray-200 flex items-center justify-center rounded\">
-                                        <svg class=\"w-10 h-10 text-gray-400\" fill=\"currentColor\" viewBox=\"0 0 20 20\"><path fill-rule=\"evenodd\" d=\"M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z\" clip-rule=\"evenodd\"></path></svg>
+                            <div class="flex gap-3">
+                                <div class="w-1/4 flex items-center justify-center">
+                                    <div class="w-20 h-24 border border-gray-400 bg-gray-200 flex items-center justify-center rounded">
+                                        <svg class="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
                                     </div>
                                 </div>
-                                <div class=\"w-3/4 text-sm space-y-1\">
-                                    <p class=\"font-bold text-base\">${voter.name}</p>
-                                    <p><span class=\"font-semibold\">${relationLabel}:</span> ${relationName}</p>
-                                    <p><span class=\"font-semibold\">ఇంటి నెం:</span> ${houseNumber}</p>
-                                    <p class=\"font-mono text-xs pt-1\">${voter.voterId}</p>
+                                <div class="w-3/4 text-sm space-y-1">
+                                    <p class="font-bold text-base">${voter.name}</p>
+                                    <p><span class="font-semibold">${relationLabel}:</span> ${relationName}</p>
+                                    <p><span class="font-semibold">ఇంటి నెం:</span> ${houseNumber}</p>
+                                    <p class="font-mono text-xs pt-1">${voter.voterId}</p>
                                 </div>
                             </div>
                         </div>
@@ -257,7 +407,7 @@
         function applyFilters() {
             const searchTerm = searchInput.value.toLowerCase();
             const selectedBooth = boothFilter.value;
-            const selectedStatus = statusFilter ? statusFilter.value : '';
+            const selectedStatus = statusFilter.value;
             const filteredVoters = voters.filter(voter => {
                 const matchesSearch = searchTerm === '' || 
                                       voter.name.toLowerCase().includes(searchTerm) || 
@@ -271,7 +421,7 @@
             });
             renderVoterList(filteredVoters);
         }
-
+        
         function showVoterDetails(voterId) {
             const voter = voters.find(v => v.id == voterId);
             if (!voter) return;
@@ -296,53 +446,54 @@
             }
 
             modalContentBody.innerHTML = `
-                <div class=\"flex items-start justify-between mb-4\">
+                <div class="flex items-start justify-between mb-4">
                     <div>
-                        <h2 class=\"text-2xl font-bold text-blue-600\">${voter.name}</h2>
-                        <p class=\"text-sm text-gray-500\">${voter.voterId}</p>
+                        <h2 class="text-2xl font-bold text-blue-600">${voter.name}</h2>
+                        <p class="text-sm text-gray-500">${voter.voterId}</p>
                     </div>
-                    <span class=\"text-sm font-bold px-3 py-1.5 rounded-full ${getStatusBgClass(voter.status)}\">${voter.status === 'Supporter' ? 'మద్దతుదారు' : voter.status === 'Neutral' ? 'తటస్థం' : 'ప్రత్యర్థి'}</span>
+                    <span class="text-sm font-bold px-3 py-1.5 rounded-full ${getStatusBgClass(voter.status)}">${voter.status === 'Supporter' ? 'మద్దతుదారు' : voter.status === 'Neutral' ? 'తటస్థం' : 'ప్రత్యర్థి'}</span>
                 </div>
                  
-                <div class=\"mb-4\">
-                    <h3 class=\"text-lg font-semibold border-b pb-1 mb-2 text-gray-800\">వ్యక్తిగత వివరాలు</h3>
-                    <div class=\"grid grid-cols-2 md:grid-cols-3 gap-3 text-sm\">
-                        <div><p class=\"font-semibold text-gray-700\">వయసు:</p><p class=\"text-gray-900\">${age} సం.</p></div>
-                        <div><p class=\"font-semibold text-gray-700\">లింగం:</p><p class=\"text-gray-900\">${genderText}</p></div>
-                        <div><p class=\"font-semibold text-gray-700\">వైవాహిక స్థితి:</p><p class=\"text-gray-900\">${maritalStatusText}</p></div>
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">వ్యక్తిగత వివరాలు</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                        <div><p class="font-semibold text-gray-700">వయసు:</p><p class="text-gray-900">${age} సం.</p></div>
+                        <div><p class="font-semibold text-gray-700">లింగం:</p><p class="text-gray-900">${genderText}</p></div>
+                        <div><p class="font-semibold text-gray-700">వైవాహిక స్థితి:</p><p class="text-gray-900">${maritalStatusText}</p></div>
                     </div>
                 </div>
 
-                <div class=\"mb-4\">
-                    <h3 class=\"text-lg font-semibold border-b pb-1 mb-2 text-gray-800\">వృత్తి & విద్య</h3>
-                     <div class=\"grid grid-cols-2 gap-3 text-sm\">
-                        <div><p class=\"font-semibold text-gray-700\">వృత్తి:</p><p class=\"text-gray-900\">${voter.occupation || 'N/A'}</p></div>
-                        <div><p class=\"font-semibold text-gray-700\">విద్య:</p><p class=\"text-gray-900\">${voter.education || 'N/A'}</p></div>
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">వృత్తి & విద్య</h3>
+                     <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div><p class="font-semibold text-gray-700">వృత్తి:</p><p class="text-gray-900">${voter.occupation || 'N/A'}</p></div>
+                        <div><p class="font-semibold text-gray-700">విద్య:</p><p class="text-gray-900">${voter.education || 'N/A'}</p></div>
                     </div>
                 </div>
 
-                <div class=\"mb-4\">
-                    <h3 class=\"text-lg font-semibold border-b pb-1 mb-2 text-gray-800\">కుటుంబ వివరాలు</h3>
-                    <div class=\"grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-2\">
-                        <div><p class=\"font-semibold text-gray-700\">తండ్రి పేరు:</p><p class=\"text-gray-900\">${voter.fatherName}</p></div>
-                        <div><p class=\"font-semibold text-gray-700\">తల్లి పేరు:</p><p class=\"text-gray-900\">${voter.motherName || 'N/A'}</p></div>
-                         ${voter.spouseName ? `<div><p class=\"font-semibold text-gray-700\">${voter.gender === 'Male' ? 'భార్య' : 'భర్త'}:</p><p class=\"text-gray-900\">${voter.spouseName}</p></div>` : ''}
-                        <div><p class=\"font-semibold text-gray-700\">ఇంటి పెద్ద:</p><p class=\"text-gray-900\">${voter.houseHead || 'N/A'}</p></div>
-                        <div><p class=\"font-semibold text-gray-700\">కుటుంబ పెద్ద:</p><p class=\"text-gray-900\">${voter.familyHead || 'N/A'}</p></div>
+                <div class="mb-4">
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">కుటుంబ వివరాలు</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-2">
+                        <div><p class="font-semibold text-gray-700">తండ్రి పేరు:</p><p class="text-gray-900">${voter.fatherName}</p></div>
+                        <div><p class="font-semibold text-gray-700">తల్లి పేరు:</p><p class="text-gray-900">${voter.motherName || 'N/A'}</p></div>
+                         ${voter.spouseName ? `<div><p class="font-semibold text-gray-700">${voter.gender === 'Male' ? 'భార్య' : 'భర్త'}:</p><p class="text-gray-900">${voter.spouseName}</p></div>` : ''}
+                        <div><p class="font-semibold text-gray-700">ఇంటి పెద్ద:</p><p class="text-gray-900">${voter.houseHead || 'N/A'}</p></div>
+                        <div><p class="font-semibold text-gray-700">కుటుంబ పెద్ద:</p><p class="text-gray-900">${voter.familyHead || 'N/A'}</p></div>
                     </div>
-                    <div class=\"text-sm\"><p class=\"font-semibold text-gray-700\">కుటుంబ సభ్యులు:</p>${familyMembersHTML}</div>
+                    <div class="text-sm"><p class="font-semibold text-gray-700">కుటుంబ సభ్యులు:</p>${familyMembersHTML}</div>
                 </div>
 
                  <div>
-                    <h3 class=\"text-lg font-semibold border-b pb-1 mb-2 text-gray-800\">సంప్రదింపు వివరాలు</h3>
-                    <div class=\"grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm\">
-                        <div><p class=\"font-semibold text-gray-700\">ఫోన్ నంబర్:</p><p class=\"text-gray-900\">${voter.phone}</p></div>
-                        <div><p class=\"font-semibold text-gray-700\">బూత్:</p><p class=\"text-gray-900\">${voter.booth}</p></div>
-                        <div class=\"col-span-1 sm:col-span-2\"><p class=\"font-semibold text-gray-700\">చిరునామా:</p><p class=\"text-gray-900\">${voter.address}</p></div>
+                    <h3 class="text-lg font-semibold border-b pb-1 mb-2 text-gray-800">సంప్రదింపు వివరాలు</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div><p class="font-semibold text-gray-700">ఫోన్ నంబర్:</p><p class="text-gray-900">${voter.phone}</p></div>
+                        <div><p class="font-semibold text-gray-700">బూత్:</p><p class="text-gray-900">${voter.booth}</p></div>
+                        <div class="col-span-1 sm:col-span-2"><p class="font-semibold text-gray-700">చిరునామా:</p><p class="text-gray-900">${voter.address}</p></div>
                     </div>
                 </div>
-                <div class=\"mt-6 text-right\">
-                    <button id=\"edit-voter-btn\" data-id=\"${voter.id}\" class=\"bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700\">వివరాలు మార్చు</button>
+                <div class="mt-6 flex justify-between">
+                     <button id="get-ai-suggestions" data-id="${voter.id}" class="gemini-btn font-bold px-6 py-2 rounded-md">✨ AI సూచనలు</button>
+                    <button id="edit-voter-btn" data-id="${voter.id}" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">వివరాలు మార్చు</button>
                 </div>
             `;
             voterModal.classList.remove('hidden');
@@ -351,6 +502,7 @@
                 voterModal.classList.add('hidden');
                 showFormModal(e.target.dataset.id);
             });
+            document.getElementById('get-ai-suggestions').addEventListener('click', handleGetAISuggestions);
         }
 
         function showFormModal(voterId = null) {
@@ -428,63 +580,201 @@
             maritalStatusInput.value = "";
             spouseNameInput.classList.add('hidden');
         }
+        
+        let overallChart = null;
+        let criticalBoothChart = null;
+        
+        // --- 4. GEMINI & CHART HANDLERS ---
+        async function handleGetAISuggestions(event) {
+            const voterId = event.target.dataset.id;
+            const voter = voters.find(v => v.id == voterId);
+            if (!voter) return;
 
-        // Header hide/show when filters reach the top using IntersectionObserver
-        function initHeaderObserver() {
-            if (!('IntersectionObserver' in window)) {
-                // Fallback to scroll handler
-                window.addEventListener('scroll', updateHeaderVisibility, { passive: true });
-                window.addEventListener('resize', updateHeaderVisibility);
-                updateHeaderVisibility();
+            geminiModalTitle.textContent = `✨ ${voter.name} కోసం AI సూచనలు`;
+            geminiModalContent.innerHTML = '<div class="flex items-center justify-center"><div class="loader"></div></div>';
+            geminiModalActions.classList.add('hidden');
+            geminiModal.classList.remove('hidden');
+
+            const prompt = `You are an expert political strategist in a rural Andhra Pradesh village election. Based on the following voter profile, provide a brief, 2-line summary of the voter and 3 personalized talking points in simple Telugu. The talking points should be actionable for a candidate visiting their home.
+            
+            Voter Profile:
+            - Name: ${voter.name}
+            - Age: ${calculateAge(voter.dob)}
+            - Occupation: ${voter.occupation}
+            - Status: ${voter.status}
+            - House Head: ${voter.houseHead}
+
+            Format the response clearly with headings for 'Summary' and 'Talking Points'.`;
+
+            const result = await callGeminiAPI(prompt);
+            geminiModalContent.innerHTML = `<div class="text-left whitespace-pre-wrap">${result.replace(/\*\*(.*?)\*\*/g, '<h4 class="font-bold text-lg mt-3 mb-1">$1</h4>').replace(/\*/g, '')}</div>`;
+        }
+
+        async function handleGenerateMessage(event) {
+            const group = event.target.dataset.group;
+            let groupTelugu = '';
+            let prompt = '';
+
+            if (group === 'Supporter') {
+                groupTelugu = 'మద్దతుదారులకు';
+                prompt = `You are a campaign manager for a Sarpanch election in a Vizianagaram village, Andhra Pradesh. Write a persuasive and respectful WhatsApp message in Telugu to send to our confirmed supporters. The message should thank them for their support, remind them that every vote is crucial, and urge them to vote on polling day. Keep it under 60 words and make it sound personal and humble.`;
+            } else if (group === 'Neutral') {
+                 groupTelugu = 'తటస్థులకు';
+                 prompt = `You are a campaign manager for a Sarpanch election in a Vizianagaram village, Andhra Pradesh. Write a polite and convincing WhatsApp message in Telugu to send to neutral voters who have not decided yet. The message should introduce the candidate's vision for the village (development, unity, transparency) and gently request them to consider voting for a positive change. Keep it under 60 words.`;
+            } else {
                 return;
             }
-            const headerHeight = headerSpacer ? (headerSpacer.offsetHeight || 60) : 60;
+
+            geminiModalTitle.textContent = `✨ ${groupTelugu} ప్రచార సందేశం`;
+            geminiModalContent.innerHTML = '<div class="flex items-center justify-center"><div class="loader"></div></div>';
+            geminiModalActions.classList.add('hidden');
+            geminiModal.classList.remove('hidden');
+
+            const result = await callGeminiAPI(prompt);
+            geminiModalContent.innerHTML = `<div id="gemini-text-to-copy" class="text-lg p-4 bg-gray-100 rounded-md">${result}</div>`;
+            geminiModalActions.classList.remove('hidden');
+        }
+
+        async function handleAIStrategistAnalysis() {
+            geminiModalTitle.textContent = `✨ AI ఎన్నికల వ్యూహకర్త నివేదిక`;
+            geminiModalContent.innerHTML = `<div class="w-full h-full flex items-center justify-center"><div class="loader"></div></div>`;
+            geminiModal.classList.remove('hidden');
+
+            // 1. Aggregate data
+            const supporters = voters.filter(v => v.status === 'Supporter').length;
+            const opposition = voters.filter(v => v.status === 'Opposition').length;
+            const neutral = voters.filter(v => v.status === 'Neutral').length;
+
+            const boothStats = voters.reduce((acc, voter) => {
+                acc[voter.booth] = acc[voter.booth] || { neutral: 0, total: 0 };
+                if(voter.status === 'Neutral') acc[voter.booth].neutral++;
+                acc[voter.booth].total++;
+                return acc;
+            }, {});
+            let criticalBoothNum = Object.keys(boothStats).sort((a, b) => boothStats[b].neutral - boothStats[a].neutral)[0] || 'N/A';
+            
+            const criticalBoothVoters = voters.filter(v => v.booth === criticalBoothNum);
+            const criticalSupporters = criticalBoothVoters.filter(v => v.status === 'Supporter').length;
+            const criticalOpposition = criticalBoothVoters.filter(v => v.status === 'Opposition').length;
+            const criticalNeutral = criticalBoothVoters.filter(v => v.status === 'Neutral').length;
+
+            geminiModalContent.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    <div>
+                        <h3 class="text-center font-bold text-gray-700 mb-2">మొత్తం ఓటర్ల విభజన</h3>
+                        <canvas id="overallChart"></canvas>
+                    </div>
+                     <div>
+                        <h3 class="text-center font-bold text-gray-700 mb-2">కీలకమైన బూత్ (${criticalBoothNum})</h3>
+                        <canvas id="criticalBoothChart"></canvas>
+                    </div>
+                </div>
+                <div id="ai-text-report" class="mt-6 p-4 bg-gray-50 rounded-lg min-h-[100px] flex items-center justify-center">
+                    <div class="loader"></div>
+                </div>
+            `;
+            
+            if(overallChart) overallChart.destroy();
+            if(criticalBoothChart) criticalBoothChart.destroy();
+
+            overallChart = new Chart(document.getElementById('overallChart'), {
+                type: 'pie',
+                data: { labels: ['మద్దతుదారులు', 'ప్రత్యర్థి వర్గం', 'తటస్థులు'], datasets: [{ data: [supporters, opposition, neutral], backgroundColor: ['#22c55e', '#ef4444', '#64748b'] }] },
+                options: { responsive: true, plugins: { legend: { position: 'top' } } }
+            });
+
+            criticalBoothChart = new Chart(document.getElementById('criticalBoothChart'), {
+                type: 'doughnut',
+                data: { labels: ['మద్దతుదారులు', 'ప్రత్యర్థి వర్గం', 'తటస్థులు'], datasets: [{ data: [criticalSupporters, criticalOpposition, criticalNeutral], backgroundColor: ['#22c55e', '#ef4444', '#64748b'] }] },
+                options: { responsive: true, plugins: { legend: { position: 'top' } } }
+            });
+            
+            const prompt = `You are an expert political strategist with deep knowledge of Sarpanch elections in rural Vizianagaram, Andhra Pradesh. I am the candidate. Analyze the following data and the two provided charts (Overall distribution and Critical Booth distribution) and provide a strategic report in simple Telugu.
+
+Data:
+- My Supporters: ${supporters}
+- Opposition: ${opposition}
+- Neutral Voters: ${neutral}
+- Critical Booth with most neutrals: Booth ${criticalBoothNum} (S:${criticalSupporters}, O:${criticalOpposition}, N:${criticalNeutral})
+
+Based on this, provide:
+1.  **చార్ట్‌ల విశ్లేషణ (Charts Analysis):** Briefly explain what the two charts indicate about my position.
+2.  **బలాలు & బలహీనతలు (Strengths & Weaknesses):** What are my biggest strengths and weaknesses?
+3.  **చేయాల్సిన పనులు (Actionable Strategies):** Give me 2-3 concrete strategies to convert neutral voters, focusing on the critical booth.
+Provide the report in a clear, structured format.`;
+
+            const result = await callGeminiAPI(prompt);
+            document.getElementById('ai-text-report').innerHTML = `<div class="text-left whitespace-pre-wrap">${result.replace(/\*\*(.*?)\*\*/g, '<h4 class="font-bold text-lg mt-3 mb-1">$1</h4>').replace(/\*/g, '')}</div>`;
+        }
+        
+        function initHeaderObserver() {
+            if (!('IntersectionObserver' in window) || !filtersSentinel) {
+                return;
+            }
+            const headerHeight = appHeader ? (appHeader.offsetHeight || 68) : 68;
             const observer = new IntersectionObserver((entries) => {
                 const entry = entries[0];
-                const shouldHideHeader = !entry.isIntersecting; // sentinel is above the top line
+                const shouldHideHeader = !entry.isIntersecting; 
+                
                 appHeader.classList.toggle('-translate-y-full', shouldHideHeader);
-                if (headerSpacer) headerSpacer.style.height = shouldHideHeader ? '0px' : '60px';
+                
                 if (shouldHideHeader) {
-                    filtersBar.classList.remove('top-[60px]');
+                    filtersBar.classList.remove('top-[68px]');
                     filtersBar.classList.add('top-0');
                 } else {
                     filtersBar.classList.remove('top-0');
-                    filtersBar.classList.add('top-[60px]');
+                    filtersBar.classList.add('top-[68px]');
                 }
             }, { root: null, threshold: 0, rootMargin: `-${headerHeight}px 0px 0px 0px` });
-            if (filtersSentinel) observer.observe(filtersSentinel);
+            
+            observer.observe(filtersSentinel);
         }
 
-        // Fallback scroll-based visibility
-        function updateHeaderVisibility() {
-            if (!appHeader || !filtersBar || !headerSpacer) return;
-            const headerHeight = headerSpacer.offsetHeight || 60;
-            const filtersTop = filtersBar.getBoundingClientRect().top;
-            const shouldHideHeader = filtersTop <= headerHeight + 1;
-            appHeader.classList.toggle('-translate-y-full', shouldHideHeader);
-            headerSpacer.style.height = shouldHideHeader ? '0px' : '60px';
-            if (shouldHideHeader) {
-                filtersBar.classList.remove('top-[60px]');
-                filtersBar.classList.add('top-0');
-            } else {
-                filtersBar.classList.remove('top-0');
-                filtersBar.classList.add('top-[60px]');
-            }
+        function appendMessage(text, sender) {
+            const bubble = document.createElement('div');
+            bubble.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `p-3 rounded-lg chat-bubble ${sender === 'user' ? 'user-bubble' : 'ai-bubble'}`;
+            messageDiv.innerHTML = `<p>${text}</p>`;
+
+            bubble.appendChild(messageDiv);
+            chatWindow.appendChild(bubble);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+        
+        async function handleChatSubmit(event) {
+            event.preventDefault();
+            const userQuery = chatInput.value.trim();
+            if (!userQuery) return;
+
+            appendMessage(userQuery, 'user');
+            chatInput.value = '';
+            
+            appendMessage('<div class="loader" style="width:20px; height:20px; border-top-color:#4285F4;"></div>', 'ai');
+
+            const prompt = `You are "డిజిటల్ కార్యకర్త", a helpful AI assistant for a Sarpanch candidate in a rural Andhra Pradesh village. Your name is Ramu. Your party symbol is a 'Fan'. Your main promises are: 1) Clean drinking water for every house, 2) Better roads, and 3) A new library for students.
+            
+            Answer the user's question in simple, polite Telugu based on this knowledge base. Keep the answers short and direct.
+            
+            User's Question: "${userQuery}"`;
+
+            const aiResponse = await callGeminiAPI(prompt);
+            
+            chatWindow.removeChild(chatWindow.lastChild);
+            
+            appendMessage(aiResponse, 'ai');
         }
 
-        // --- 4. EVENT LISTENERS ---
+
+        // --- 5. EVENT LISTENERS ---
         document.addEventListener('DOMContentLoaded', () => { 
             applyFilters();
             initHeaderObserver();
-            updateHeaderVisibility();
         });
-        // Keep for robustness
-        window.addEventListener('scroll', updateHeaderVisibility, { passive: true });
-        window.addEventListener('resize', updateHeaderVisibility);
-
         searchInput.addEventListener('input', applyFilters);
         boothFilter.addEventListener('change', applyFilters);
-        if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+        statusFilter.addEventListener('change', applyFilters);
         voterListContainer.addEventListener('click', (e) => {
             const card = e.target.closest('.voter-card');
             if (card) { showVoterDetails(card.dataset.id); }
@@ -498,7 +788,29 @@
         maritalStatusInput.addEventListener('change', (e) => {
             spouseNameInput.classList.toggle('hidden', e.target.value !== 'Married');
         });
-
+        
+        // Gemini Listeners
+        aiStrategistBtn.addEventListener('click', handleAIStrategistAnalysis);
+        closeGeminiModalBtn.addEventListener('click', () => geminiModal.classList.add('hidden'));
+        geminiModal.addEventListener('click', (e) => { if (e.target === geminiModal) { geminiModal.classList.add('hidden'); } });
+        document.querySelectorAll('.generate-message-btn').forEach(btn => {
+            btn.addEventListener('click', handleGenerateMessage);
+        });
+        copyGeminiTextBtn.addEventListener('click', () => {
+            const textToCopy = document.getElementById('gemini-text-to-copy').innerText;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert('సందేశం కాపీ చేయబడింది!');
+            }).catch(err => {
+                console.error('Copy failed', err);
+                alert('కాపీ చేయడం విఫలమైంది.');
+            });
+        });
+        
+        // AI Agent Listeners
+        aiAgentBtn.addEventListener('click', () => aiAgentModal.classList.remove('hidden'));
+        closeAgentModalBtn.addEventListener('click', () => aiAgentModal.classList.add('hidden'));
+        chatForm.addEventListener('submit', handleChatSubmit);
+       
         voterForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const id = voterIdInput.value;
@@ -517,7 +829,7 @@
             const voterData = {
                 name: teluguName,
                 surname: teluguSurname,
-                englishName: `${teluguSurname.toLowerCase()} ${teluguName.toLowerCase()}`.replace(/[\u0C00-\u0C7F]/g, ''), // Simple transliteration placeholder
+                englishName: `${teluguSurname.toLowerCase()} ${teluguName.toLowerCase()}`.replace(/[\u0C00-\u0C7F]/g, ''),
                 voterId: voterIdInputEl.value,
                 dob: dobInput.value,
                 gender: genderInput.value,
@@ -537,11 +849,11 @@
                 address: addressInput.value
             };
 
-            if (id) { // Edit Mode
+            if (id) {
                 const index = voters.findIndex(v => v.id == id);
                 voters[index] = { ...voters[index], ...voterData };
                 alert('వివరాలు విజయవంతంగా మార్చబడ్డాయి!');
-            } else { // Add Mode
+            } else {
                 voterData.id = Date.now(); 
                 voters.unshift(voterData); 
                 alert('కొత్త ఓటరు విజయవంతంగా జోడించబడ్డారు!');
